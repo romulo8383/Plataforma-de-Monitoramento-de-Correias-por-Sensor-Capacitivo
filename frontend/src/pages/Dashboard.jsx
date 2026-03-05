@@ -15,7 +15,7 @@ const Dashboard = () => {
   const [sensorHistory, setSensorHistory] = useState({}); // Track reading history for each sensor
   const [encoderPosition, setEncoderPosition] = useState(0);
   const [beltLength] = useState(1120); // mm
-  const [maxCapacitance] = useState(5); // pF
+  const [maxCapacitance] = useState(4); // pF - Reference capacitor
   const [loading, setLoading] = useState(true);
 
   // Mock data for active sensors (in production, fetch from API)
@@ -221,10 +221,6 @@ const Dashboard = () => {
               <span className="status-label">Estado:</span>
               <span className="status-value online">● Online</span>
             </span>
-            <span className="status-item">
-              <span className="status-label">Posição:</span>
-              <span className="status-value">{encoderPosition.toFixed(2)} mm</span>
-            </span>
           </div>
         </div>
 
@@ -241,24 +237,22 @@ const Dashboard = () => {
           />
         </div>
 
-        {/* Profile & Selector Section */}
-        <div className="profile-section">
-          <div className="profile-and-selector">
-            <ProfileWindow
-              selectedSensor={selectedSensor}
-              voltage={selectedSensor?.voltage_v || 0}
-              capacitance={selectedSensor?.capacitance_pf || 0}
-              encoderPosition={encoderPosition}
-              beltThickness={selectedSensor?.capacitance_pf || 0}
-              maxCapacitance={maxCapacitance}
-            />
-            
-            <Selector
-              sensors={activeSensors}
-              selectedSensorId={selectedSensorId}
-              onSelect={handleSensorSelect}
-            />
-          </div>
+        {/* New Profile Section Below */}
+        <div className="profile-section-below">
+          <ProfileWindow
+            selectedSensor={selectedSensor}
+            voltage={selectedSensor?.voltage_v || 0}
+            capacitance={selectedSensor?.capacitance_pf || 0}
+            encoderPosition={encoderPosition}
+            beltThickness={selectedSensor?.capacitance_pf || 0}
+            maxCapacitance={maxCapacitance}
+          />
+          
+          <Selector
+            sensors={activeSensors}
+            selectedSensorId={selectedSensorId}
+            onSelect={handleSensorSelect}
+          />
         </div>
       </div>
 

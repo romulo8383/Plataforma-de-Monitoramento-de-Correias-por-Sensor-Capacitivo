@@ -11,6 +11,8 @@ const ConveyorBeltDisplay = ({
   allSensors = [],
   sensorHistory = {}, // Historical readings for each sensor
 }) => {
+  const [displayMode, setDisplayMode] = React.useState('color'); // 'color' or 'graph'
+
   // Calculate position indicator
   const positionPercentage = beltLength > 0 ? (encoderPosition / beltLength) * 100 : 0;
 
@@ -32,13 +34,35 @@ const ConveyorBeltDisplay = ({
     1
   );
 
+  // Calculate percentage from capacitance
+  const getPercentage = (capacitance) => {
+    if (capacitance === undefined || capacitance === null) return 0;
+    return Math.max(0, Math.min(100, ((capacitance - minCapacitance) / (referenceCapacitance - minCapacitance)) * 100));
+  };
+
   // Lane height based on number of active sensors
   const laneHeight = activeSensors.length > 0 ? 100 / activeSensors.length : 100;
 
   return (
     <div className="conveyor-display-container">
       <div className="conveyor-belt-wrapper">
-        <h3 className="conveyor-title">Correia Transportadora</h3>
+        <div className="conveyor-header">
+          <h3 className="conveyor-title">Correia Transportadora</h3>
+          
+          {/* Display Mode Toggle */}
+          <div className="display-mode-toggle">
+            <span className={displayMode === 'color' ? 'active' : ''}>Cor</span>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={displayMode === 'graph'}
+                onChange={() => setDisplayMode(displayMode === 'color' ? 'graph' : 'color')}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+            <span className={displayMode === 'graph' ? 'active' : ''}>Gráfico</span>
+          </div>
+        </div>
 
         {/* Sensor status bar - all 16 sensors */}
         <div className="sensor-status-bar">
@@ -86,36 +110,80 @@ const ConveyorBeltDisplay = ({
                 }}
                 title={`Sensor ${sensor.sensor_number} - ${history.length || 0} readings`}
               >
-                {/* Historical readings scrolling from right to left */}
+                {/* Percentage legend for graph mode */}
+                {displayMode === 'graph' && (
+                  <div className="percentage-legend">
+                    <span>100%</span>
+                    <span>75%</span>
+                    <span>50%</span>
+                    <span>25%</span>
+                    <span>0%</span>
+                  </div>
+                )}
+
+                {/* Historical readings */}
                 <div className="history-container">
-                  {history.map((reading, idx) => (
-                    <div
-                      key={idx}
-                      className="reading-column"
-                      style={{
-                        width: `${readingWidth}%`,
-                        backgroundColor: getCapacitanceColor(reading.capacitance_pf),
-                        borderRight: '1px solid rgba(255,255,255,0.2)',
-                      }}
-                      title={`${reading.capacitance_pf?.toFixed(3) || '0.000'} pF`}
-                    />
-                  ))}
-                  {/* Fill remaining space if not enough readings */}
-                  {history.length < maxHistoryLength &&
-                    Array.from({ length: maxHistoryLength - history.length }).map((_, idx) => (
-                      <div
-                        key={`empty-${idx}`}
-                        className="reading-column empty"
-                        style={{
-                          width: `${readingWidth}%`,
-                          backgroundColor: '#f0f0f0',
-                          borderRight: '1px solid rgba(255,255,255,0.2)',
-                        }}
-                      />
-                    ))}
+                  {displayMode === 'color' ? (
+                    // Color mode - existing implementation
+                    <>
+                      {history.map((reading, idx) => (
+                        <div
+                          key={idx}
+                          className="reading-column"
+                          style={{
+                            width: `${readingWidth}%`,
+                            backgroundColor: getCapacitanceColor(reading.capacitance_pf),
+                            borderRight: '1px solid rgba(255,255,255,0.2)',
+                          }}
+                          title={`${reading.capacitance_pf?.toFixed(3) || '0.000'} pF`}
+                        />
+                      ))}
+                      {history.length < maxHistoryLength &&
+                        Array.from({ length: maxHistoryLength - history.length }).map((_, idx) => (
+                          <div
+                            key={`empty-${idx}`}
+                            className="reading-column empty"
+                            style={{
+                              width: `${readingWidth}%`,
+                              backgroundColor: '#f0f0f0',
+                              borderRight: '1px solid rgba(255,255,255,0.2)',
+                            }}
+                          />
+                        ))}
+                    </>
+                  ) : (
+                    // Graph mode - line graph implementation
+                    <svg
+                      className="line-graph"
+                      width="100%"
+                      height="100%"
+                      preserveAspectRatio="none"
+                      style={{ backgroundColor: 'white' }}
+                    >
+                      {history.map((reading, idx) => {
+                        const percentage = getPercentage(reading.capacitance_pf);
+                        const x = (idx / maxHistoryLength) * 100;
+                        const nextReading = history[idx + 1];
+                        const nextPercentage = nextReading ? getPercentage(nextReading.capacitance_pf) : percentage;
+                        const nextX = ((idx + 1) / maxHistoryLength) * 100;
+                        
+                        return (
+                          <line
+                            key={idx}
+                            x1={`${x}%`}
+                            y1={`${100 - percentage}%`}
+                            x2={`${nextX}%`}
+                            y2={`${100 - nextPercentage}%`}
+                            stroke="var(--primary-color)"
+                            strokeWidth="2"
+                          />
+                        );
+                      })}
+                    </svg>
+                  )}
                 </div>
 
-                {/* Sensor label on left */}
+                {/* Sensor label on right */}
                 <div className="sensor-lane-label">
                   S{sensor.sensor_number}
                 </div>
@@ -125,17 +193,23 @@ const ConveyorBeltDisplay = ({
         </div>
 
         {/* Position indicator with belt movement */}
-        <div className="position-indicator-track">
-          <div
-            className="position-indicator-marker"
-            style={{
-              left: `${positionPercentage}%`,
-              transition: 'left 0.25s ease-out', // Smooth movement
-            }}
-          >
-            <div className="position-marker-label">
-              {encoderPosition.toFixed(2)} mm
+        <div className="position-indicator-wrapper">
+          <div className="position-indicator-track">
+            <div
+              className="position-indicator-marker"
+              style={{
+                right: `${positionPercentage}%`,
+                transition: 'right 0.25s ease-out',
+              }}
+            >
+              <div className="position-marker-label">
+                {encoderPosition.toFixed(2)} mm
+              </div>
             </div>
+          </div>
+          <div className="position-display">
+            <span className="position-label">Posição:</span>
+            <span className="position-value">{encoderPosition.toFixed(2)} mm</span>
           </div>
         </div>
       </div>

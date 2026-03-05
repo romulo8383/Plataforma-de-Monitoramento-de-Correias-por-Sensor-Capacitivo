@@ -23,11 +23,80 @@
   gap: 1.5rem;
 }
 
+.conveyor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .conveyor-title {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+}
+
+/* Display Mode Toggle */
+.display-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.display-mode-toggle span {
+  transition: color 0.3s ease;
+}
+
+.display-mode-toggle span.active {
+  color: var(--primary-color);
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.4s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.4s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--primary-color);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(26px);
 }
 
 /* Sensor Status Bar */
@@ -99,7 +168,7 @@
   flex-direction: column;
   background-color: #f3f4f6;
   border-radius: 8px;
-  height: 300px;
+  height: 360px;
   overflow: hidden;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
   position: relative;
@@ -122,8 +191,8 @@
 }
 
 .sensor-lane.selected {
-  background-color: rgba(37, 99, 235, 0.05);
-  border: 2px solid var(--primary-color);
+  background-color: rgba(255, 165, 0, 0.05);
+  border: 2px solid #ff8c00;
 }
 
 .sensor-lane-label {
@@ -137,7 +206,7 @@
   background-color: #10b981;
   padding: 4px 12px;
   border-radius: 4px 0 0 4px;
-  z-index: 10;
+  z-index: 1;
   box-shadow: -2px 1px 3px rgba(0, 0, 0, 0.15);
   min-width: 40px;
   text-align: center;
@@ -175,13 +244,44 @@
 }
 
 /* Position Indicator */
+.position-indicator-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .position-indicator-track {
   position: relative;
   height: 40px;
+  flex: 1;
   background: linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 50%, #e2e8f0 100%);
   border-radius: 8px;
   border: 2px solid var(--border-color);
   overflow: hidden;
+}
+
+.position-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  min-width: 120px;
+}
+
+.position-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.position-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  color: var(--primary-color);
 }
 
 .position-indicator-marker {
@@ -211,6 +311,41 @@
   pointer-events: none;
   user-select: none;
   z-index: 10;
+}
+
+/* Percentage Legend */
+.percentage-legend {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 50px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 4px 0;
+  background-color: rgba(255, 255, 255, 0.95);
+  border-right: 2px solid var(--border-color);
+  z-index: 2;
+}
+
+.percentage-legend span {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1;
+}
+
+/* Graph Mode */
+.line-graph {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.history-container svg {
+  margin-right: 60px;
 }
 
 /* Responsive */

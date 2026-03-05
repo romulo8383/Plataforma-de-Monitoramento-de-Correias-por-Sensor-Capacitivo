@@ -92,7 +92,7 @@ body {
   padding: 2rem;
   border-radius: 12px;
   box-shadow: var(--shadow-md);
-  width: 70%;
+  width: 100%;
   margin: 0 auto;
   flex: 0 0 auto;
 }
@@ -108,10 +108,41 @@ body {
   flex: 0 0 auto;
 }
 
+.profile-section-below {
+  background: var(--bg-secondary);
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  width: 100%;
+  margin: 1.5rem auto 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2rem;
+}
+
+.profile-section-below .profile-window-container {
+  width: 200px;
+  flex: 0 0 200px;
+}
+
+.profile-section-below .profile-window {
+  width: 200px;
+  height: 200px;
+  aspect-ratio: 1 / 1;
+}
+
+.profile-section-below .selector-container {
+  flex: 1;
+  padding: 0;
+}
+
 .profile-and-selector {
   display: flex;
-  gap: 3rem;
+  flex-direction: column;
+  gap: 1.5rem;
   align-items: flex-start;
+  width: 100%;
 }
 
 .dashboard-sidebar {
