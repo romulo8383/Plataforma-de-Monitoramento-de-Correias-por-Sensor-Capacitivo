@@ -1,0 +1,226 @@
+/* src/styles/ConveyorBeltDisplay.css */
+
+.conveyor-display-container {
+  width: 100%;
+}
+
+.no-sensors-message {
+  text-align: center;
+  padding: 2rem;
+  background-color: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  color: #92400e;
+}
+
+.no-sensors-message p {
+  font-weight: 500;
+}
+
+.conveyor-belt-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.conveyor-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Sensor Status Bar */
+.sensor-status-bar {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.sensor-status-item {
+  width: 40px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.sensor-status-item.active {
+  background-color: #10b981;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.sensor-status-item.inactive {
+  background-color: #9ca3af;
+  opacity: 0.8;
+}
+
+.sensor-status-item:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+}
+
+/* Active Capacitor Display */
+.active-capacitor-display {
+  display: none;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(255, 255, 255, 0.95);
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-color);
+  font-size: 0.875rem;
+}
+
+.active-capacitor-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.active-capacitor-value {
+  font-family: 'Courier New', monospace;
+  color: var(--primary-color);
+  font-weight: 700;
+}
+
+.conveyor-belt {
+  display: flex;
+  flex-direction: column;
+  background-color: #f3f4f6;
+  border-radius: 8px;
+  height: 300px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
+  border: 2px solid var(--border-color);
+}
+
+.sensor-lane {
+  height: auto;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  position: relative;
+  cursor: default;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  user-select: none;
+}
+
+.sensor-lane:last-child {
+  border-bottom: none;
+}
+
+.sensor-lane.selected {
+  background-color: rgba(37, 99, 235, 0.05);
+  border: 2px solid var(--primary-color);
+}
+
+.sensor-lane-label {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: black;
+  background-color: #10b981;
+  padding: 4px 12px;
+  border-radius: 4px 0 0 4px;
+  z-index: 10;
+  box-shadow: -2px 1px 3px rgba(0, 0, 0, 0.15);
+  min-width: 40px;
+  text-align: center;
+}
+
+.history-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  margin-right: 60px;
+  overflow: hidden;
+}
+
+.reading-column {
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.reading-column.empty {
+  background-color: #f0f0f0;
+  opacity: 0.3;
+}
+
+.reading-column {
+  user-select: none;
+  pointer-events: none;
+}
+
+.capacitance-segment {
+  display: none;
+}
+
+/* Position Indicator */
+.position-indicator-track {
+  position: relative;
+  height: 40px;
+  background: linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 50%, #e2e8f0 100%);
+  border-radius: 8px;
+  border: 2px solid var(--border-color);
+  overflow: hidden;
+}
+
+.position-indicator-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: var(--primary-color);
+  border-radius: 2px;
+  transition: left 0.1s linear;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.5);
+}
+
+.position-marker-label {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--primary-color);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .conveyor-belt {
+    min-height: 80px;
+    gap: 2px;
+  }
+
+  .position-indicator-track {
+    height: 30px;
+  }
+}
