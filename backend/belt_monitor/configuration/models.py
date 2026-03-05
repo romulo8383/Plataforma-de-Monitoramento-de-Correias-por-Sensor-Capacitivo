@@ -37,3 +37,158 @@ class Belt(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.length_m}m x {self.width_mm}mm)"
+
+
+class SensorCalibration(models.Model):
+    """
+    Represents a calibration curve for capacitive sensors.
+    Stores polynomial coefficients to convert voltage to capacitance.
+    Polynomial form: C = a4*(V^4) + a3*(V^3) + a2*(V^2) + a1*V + a0
+    """
+    name = models.CharField(
+        max_length=100,
+        help_text="Name or identifier of the calibration"
+    )
+    description = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Optional description of the calibration procedure"
+    )
+    fixed_capacitor_pf = models.FloatField(
+        help_text="Fixed capacitor value in picofarads (pF) used in the circuit"
+    )
+    # Polynomial coefficients for voltage to capacitance conversion
+    a4 = models.FloatField(
+        blank=True,
+        null=True,
+        help_text="Coefficient for V^4 term in polynomial"
+    )
+    a3 = models.FloatField(
+        blank=True,
+        null=True,
+        help_text="Coefficient for V^3 term in polynomial"
+    )
+    a2 = models.FloatField(
+        blank=True,
+        null=True,
+        help_text="Coefficient for V^2 term in polynomial"
+    )
+    a1 = models.FloatField(
+        blank=True,
+        null=True,
+        help_text="Coefficient for V term in polynomial"
+    )
+    a0 = models.FloatField(
+        blank=True,
+        null=True,
+        help_text="Constant term in polynomial"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Timestamp when the calibration was created"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Timestamp of the last update"
+    )
+
+    class Meta:
+        verbose_name = "Sensor Calibration"
+        verbose_name_plural = "Sensor Calibrations"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} (Fixed: {self.fixed_capacitor_pf}pF)"
+
+    @property
+    def calibration_points_count(self):
+        """Returns the number of calibration points."""
+        return self.calibration_points.count()
+
+    @property
+    def is_calibrated(self):
+        """Returns True if all polynomial coefficients are set."""
+        return all(coeff is not None for coeff in [self.a4, self.a3, self.a2, self.a1, self.a0])
+
+
+class CalibrationPoint(models.Model):
+    """
+    Individual calibration point with known capacitor value and measured voltage.
+    Used to generate the polynomial coefficients for voltage-to-capacitance conversion.
+    """
+    calibration = models.ForeignKey(
+        SensorCalibration,
+        on_delete=models.CASCADE,
+        related_name='calibration_points',
+        help_text="The calibration this point belongs to"
+    )
+    variable_capacitor_pf = models.FloatField(
+        help_text="Known capacitance value of the variable capacitor in picofarads (pF)"
+    )
+    measured_voltage_v = models.FloatField(
+        help_text="Measured voltage output from the sensor in volts (V)"
+    )
+
+    class Meta:
+        verbose_name = "Calibration Point"
+        verbose_name_plural = "Calibration Points"
+        ordering = ['variable_capacitor_pf']
+        unique_together = ['calibration', 'variable_capacitor_pf']
+
+    def __str__(self):
+        return f"{self.variable_capacitor_pf}pF → {self.measured_voltage_v}V"
+
+
+class Sensor(models.Model):
+    """
+    Represents a capacitive sensor mounted above the conveyor belt.
+    Each sensor is a square capacitive plate used to measure belt wear.
+    """
+    belt = models.ForeignKey(
+        Belt,
+        on_delete=models.CASCADE,
+        related_name='sensors',
+        help_text="The conveyor belt this sensor is mounted on"
+    )
+    sensor_number = models.IntegerField(
+        help_text="Physical sensor index (1-16)"
+    )
+    enabled = models.BooleanField(
+        default=False,
+        help_text="Enable/disable sensor operation"
+    )
+    plate_size_mm = models.FloatField(
+        help_text="Side length of the square capacitive plate in millimeters"
+    )
+    offset_longitudinal_mm = models.FloatField(
+        help_text="Position offset along belt direction. Positive = belt movement direction, Negative = opposite direction"
+    )
+    offset_lateral_mm = models.FloatField(
+        help_text="Distance from belt top edge to sensor plate start in millimeters"
+    )
+    calibration = models.ForeignKey(
+        SensorCalibration,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sensors',
+        help_text="Calibration curve for voltage-to-capacitance conversion"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Timestamp when the sensor was created"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Timestamp of the last update"
+    )
+
+    class Meta:
+        verbose_name = "Sensor"
+        verbose_name_plural = "Sensors"
+        ordering = ['sensor_number']
+        unique_together = ['belt', 'sensor_number']
+
+    def __str__(self):
+        status = "✓" if self.enabled else "✗"
+        return f"Sensor {self.sensor_number} ({self.belt.name}) - {status}"
