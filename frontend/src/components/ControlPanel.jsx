@@ -1,12 +1,34 @@
 // src/components/ControlPanel.jsx
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../styles/ControlPanel.css';
 
 const ControlPanel = ({ allSensors, onToggleSensor }) => {
   const [activeModal, setActiveModal] = useState(null);
+  const navigate = useNavigate();
 
   const toggleModal = (modalName) => {
     setActiveModal(activeModal === modalName ? null : modalName);
+  };
+
+  const handleBeltConfig = () => {
+    navigate('/belt-config');
+  };
+
+  const handleSensorConfig = () => {
+    navigate('/sensor-config');
+  };
+
+  const handleCalibration = () => {
+    navigate('/calibration');
+  };
+
+  const handleAcquisition = () => {
+    navigate('/acquisition');
+  };
+
+  const handleVisualization = () => {
+    navigate('/visualization');
   };
 
   const buttons = [
@@ -44,7 +66,47 @@ const ControlPanel = ({ allSensors, onToggleSensor }) => {
       </div>
 
       <div className="control-buttons">
-        {buttons.map((button) => (
+        <button
+          className="control-btn"
+          onClick={handleBeltConfig}
+          title="Configuração da Correia"
+        >
+          <span className="btn-icon">⚙️</span>
+          <span className="btn-label">Configuração da Correia</span>
+        </button>
+        <button
+          className="control-btn"
+          onClick={handleSensorConfig}
+          title="Configuração Sensores"
+        >
+          <span className="btn-icon">📡</span>
+          <span className="btn-label">Configuração Sensores</span>
+        </button>
+        <button
+          className="control-btn"
+          onClick={handleCalibration}
+          title="Calibração"
+        >
+          <span className="btn-icon">📊</span>
+          <span className="btn-label">Calibração</span>
+        </button>
+        <button
+          className="control-btn"
+          onClick={handleAcquisition}
+          title="Aquisição"
+        >
+          <span className="btn-icon">📥</span>
+          <span className="btn-label">Aquisição</span>
+        </button>
+        <button
+          className="control-btn"
+          onClick={handleVisualization}
+          title="Visualização"
+        >
+          <span className="btn-icon">📈</span>
+          <span className="btn-label">Visualização</span>
+        </button>
+        {buttons.slice(5).map((button) => (
           <button
             key={button.id}
             className={`control-btn ${activeModal === button.id ? 'active' : ''}`}

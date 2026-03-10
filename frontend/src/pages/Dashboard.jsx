@@ -1,142 +1,152 @@
 // src/pages/Dashboard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useConfig } from '../context/ConfigContext';
 import ConveyorBeltDisplay from '../components/ConveyorBeltDisplay';
 import ProfileWindow from '../components/ProfileWindow';
 import Selector from '../components/Selector';
 import ControlPanel from '../components/ControlPanel';
-// import { apiClient } from '../api/apiClient'; // TODO: Uncomment when backend API is running
 import '../styles/Dashboard.css';
 
 const Dashboard = () => {
+  const { sensorConfig, updateSensorConfig } = useConfig();
+  const encoderIntervalRef = useRef(null);
+  const encoderPositionRef = useRef(0); // Keep encoder value persistent
+  
   // State management
   const [selectedSensorId, setSelectedSensorId] = useState(null);
   const [activeSensors, setActiveSensors] = useState([]);
   const [allSensors, setAllSensors] = useState([]);
-  const [sensorHistory, setSensorHistory] = useState({}); // Track reading history for each sensor
+  const [sensorHistory, setSensorHistory] = useState({});
   const [encoderPosition, setEncoderPosition] = useState(0);
-  const [beltLength] = useState(1120); // mm
-  const [maxCapacitance] = useState(4); // pF - Reference capacitor
+  const [beltLength] = useState(1120);
+  const [maxCapacitance] = useState(4);
   const [loading, setLoading] = useState(true);
 
-  // Mock data for active sensors (in production, fetch from API)
+  // Mock data for active sensors - ONLY on initial mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const mockActiveSensors = [
-      {
-        id: 1,
-        sensor_number: 1,
+    // Only initialize if we don't have data yet
+    if (activeSensors.length === 0) {
+      const enabledSensors = sensorConfig.filter(s => s.enabled).map(s => s.number);
+      
+      const mockActiveSensors = enabledSensors.map(sensorNum => ({
+        id: sensorNum,
+        sensor_number: sensorNum,
         enabled: true,
         belt_id: 1,
-        voltage_v: 2.31,
-        capacitance_pf: 2.45,
-      },
-      {
-        id: 2,
-        sensor_number: 2,
-        enabled: true,
-        belt_id: 1,
-        voltage_v: 2.45,
-        capacitance_pf: 1.89,
-      },
-      {
-        id: 3,
-        sensor_number: 3,
-        enabled: true,
-        belt_id: 1,
-        voltage_v: 2.38,
-        capacitance_pf: 3.12,
-      },
-      {
-        id: 4,
-        sensor_number: 4,
-        enabled: true,
-        belt_id: 1,
-        voltage_v: 2.42,
-        capacitance_pf: 2.78,
-      },
-    ];
+        voltage_v: 2.3 + Math.random() * 0.3,
+        capacitance_pf: 1.5 + Math.random() * 2.5,
+      }));
 
-    // Mock all 16 sensors
-    const mockAllSensors = Array.from({ length: 16 }, (_, i) => {
-      const sensorNumber = i + 1;
-      const isActive = mockActiveSensors.some(s => s.sensor_number === sensorNumber);
-      const activeSensor = mockActiveSensors.find(s => s.sensor_number === sensorNumber);
+      const mockAllSensors = Array.from({ length: 16 }, (_, i) => {
+        const sensorNumber = i + 1;
+        const isActive = enabledSensors.includes(sensorNumber);
+        const activeSensor = mockActiveSensors.find(s => s.sensor_number === sensorNumber);
 
-      return {
-        sensor_number: sensorNumber,
-        enabled: isActive,
-        belt_id: 1,
-        capacitance_pf: activeSensor ? activeSensor.capacitance_pf : null,
-        voltage_v: activeSensor ? activeSensor.voltage_v : null,
-      };
-    });
+        return {
+          sensor_number: sensorNumber,
+          enabled: isActive,
+          belt_id: 1,
+          capacitance_pf: activeSensor ? activeSensor.capacitance_pf : null,
+          voltage_v: activeSensor ? activeSensor.voltage_v : null,
+        };
+      });
 
-    setActiveSensors(mockActiveSensors);
-    setAllSensors(mockAllSensors);
-    // Initialize sensor history
-    const initialHistory = {};
-    mockActiveSensors.forEach(sensor => {
-      initialHistory[sensor.id] = [{ capacitance_pf: sensor.capacitance_pf, timestamp: Date.now() }];
-    });
-    setSensorHistory(initialHistory);
-    if (mockActiveSensors.length > 0) {
-      setSelectedSensorId(mockActiveSensors[0].id);
+      setActiveSensors(mockActiveSensors);
+      setAllSensors(mockAllSensors);
+      
+      setSensorHistory(prevHistory => {
+        const newHistory = { ...prevHistory };
+        mockActiveSensors.forEach(sensor => {
+          if (!newHistory[sensor.id]) {
+            newHistory[sensor.id] = [{ capacitance_pf: sensor.capacitance_pf, timestamp: Date.now() }];
+          }
+        });
+        return newHistory;
+      });
+      
+      if (mockActiveSensors.length > 0 && !selectedSensorId) {
+        setSelectedSensorId(mockActiveSensors[0].id);
+      }
+      setLoading(false);
     }
-    setLoading(false);
-  }, []);
+  }, []); // Empty dependency - only run ONCE on mount
 
-  // Simulate real-time data updates
+  // Encoder position update - ONLY runs once and updates independently
   useEffect(() => {
-    if (selectedSensorId) {
-      const interval = setInterval(() => {
-        // Simulate encoder position change (0-1120mm, moving right to left)
-        setEncoderPosition((prev) => (prev + 5) % 1120);
+    // Initialize encoder ref - recover from localStorage if available
+    const savedEncoderPosition = localStorage.getItem('encoderPosition');
+    if (savedEncoderPosition) {
+      encoderPositionRef.current = parseInt(savedEncoderPosition, 10);
+      setEncoderPosition(encoderPositionRef.current);
+    } else {
+      encoderPositionRef.current = 0;
+    }
+    
+    encoderIntervalRef.current = setInterval(() => {
+      // Update the ref value
+      encoderPositionRef.current = (encoderPositionRef.current + 5) % 1120;
+      // Update the state for UI display
+      setEncoderPosition(encoderPositionRef.current);
+      // Save to localStorage to persist across page reloads
+      localStorage.setItem('encoderPosition', encoderPositionRef.current.toString());
+    }, 250);
 
-        // Generate new readings for each active sensor
-        setActiveSensors((prevActiveSensors) => {
-          const updatedSensors = prevActiveSensors.map((sensor) => ({
-            ...sensor,
-            voltage_v: 2.3 + Math.random() * 0.3,
-            capacitance_pf: 1.5 + Math.random() * 2.5, // 1.5-4.0 pF range
-          }));
+    // Return cleanup function
+    return () => {
+      if (encoderIntervalRef.current) {
+        clearInterval(encoderIntervalRef.current);
+      }
+    };
+  }, []); // Empty dependency array - NEVER re-run this effect
 
-          // Update sensor history
-          setSensorHistory((prevHistory) => {
-            const newHistory = { ...prevHistory };
-            updatedSensors.forEach((sensor) => {
-              if (!newHistory[sensor.id]) {
-                newHistory[sensor.id] = [];
-              }
-              // Add new reading and keep only last 20 readings
-              newHistory[sensor.id] = [
-                ...newHistory[sensor.id],
-                { capacitance_pf: sensor.capacitance_pf, timestamp: Date.now() }
-              ].slice(-20);
-            });
-            return newHistory;
+  // Simulate real-time data updates - only runs once, never stops
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Update activeSensors with new readings
+      setActiveSensors((prevActiveSensors) => {
+        const updatedSensors = prevActiveSensors.map((sensor) => ({
+          ...sensor,
+          voltage_v: 2.3 + Math.random() * 0.3,
+          capacitance_pf: 1.5 + Math.random() * 2.5,
+        }));
+
+        // Update sensor history
+        setSensorHistory((prevHistory) => {
+          const newHistory = { ...prevHistory };
+          updatedSensors.forEach((sensor) => {
+            if (!newHistory[sensor.id]) {
+              newHistory[sensor.id] = [];
+            }
+            newHistory[sensor.id] = [
+              ...newHistory[sensor.id],
+              { capacitance_pf: sensor.capacitance_pf, timestamp: Date.now() }
+            ].slice(-20);
           });
-
-          return updatedSensors;
+          return newHistory;
         });
 
-        // Update all sensors with new capacitance values
-        setAllSensors((prevAllSensors) =>
-          prevAllSensors.map((sensor) => {
-            if (sensor.enabled) {
-              const activeSensor = activeSensors.find(s => s.sensor_number === sensor.sensor_number);
-              return {
-                ...sensor,
-                capacitance_pf: activeSensor ? activeSensor.capacitance_pf : sensor.capacitance_pf,
-                voltage_v: activeSensor ? activeSensor.voltage_v : sensor.voltage_v,
-              };
-            }
-            return sensor;
-          })
-        );
-      }, 250); // Update every 250ms
+        return updatedSensors;
+      });
 
-      return () => clearInterval(interval);
-    }
-  }, [selectedSensorId, activeSensors]);
+      // Update all sensors capacitance values from their latest active state
+      setAllSensors((prevAllSensors) =>
+        prevAllSensors.map((sensor) => {
+          if (sensor.enabled) {
+            // Generate random values for enabled sensors
+            return {
+              ...sensor,
+              voltage_v: 2.3 + Math.random() * 0.3,
+              capacitance_pf: 1.5 + Math.random() * 2.5,
+            };
+          }
+          return sensor;
+        })
+      );
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, []); // Empty dependency - only run once on mount
 
   // Fetch real data from API (uncomment when backend is ready)
   /*
@@ -194,6 +204,13 @@ const Dashboard = () => {
       if (!selectedSensorId || !newActiveSensors.find(s => s.id === selectedSensorId)) {
         setSelectedSensorId(newActiveSensors.length > 0 ? newActiveSensors[0].id : null);
       }
+
+      // Save the new configuration to Context/localStorage
+      const newSensorConfig = updatedSensors.map(s => ({
+        number: s.sensor_number,
+        enabled: s.enabled,
+      }));
+      updateSensorConfig(newSensorConfig);
 
       return updatedSensors;
     });

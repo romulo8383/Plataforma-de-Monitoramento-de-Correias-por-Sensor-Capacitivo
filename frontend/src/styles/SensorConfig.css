@@ -1,0 +1,107 @@
+/* src/styles/SensorConfig.css */
+
+.sensor-config-page {
+  min-height: 100vh;
+  background-color: var(--bg-color);
+  padding: 2rem;
+}
+
+.sensor-info-box {
+  background-color: #f8fafc;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+  display: flex;
+  gap: 2rem;
+}
+
+.sensor-info-box p {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.sensor-info-box strong {
+  color: var(--text-primary);
+  font-size: 1.1rem;
+}
+
+.sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1rem;
+}
+
+.sensor-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid var(--border-color);
+}
+
+.sensor-card.active {
+  background-color: #d1fae5;
+  border-color: #10b981;
+}
+
+.sensor-card.inactive {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.sensor-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.sensor-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.sensor-status {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.sensor-card.active .sensor-status {
+  color: #10b981;
+}
+
+.sensor-card.inactive .sensor-status {
+  color: #9ca3af;
+}
+
+@media (max-width: 768px) {
+  .sensor-config-page {
+    padding: 1rem;
+  }
+
+  .sensor-info-box {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .sensor-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  }
+
+  .sensor-card {
+    padding: 1rem;
+  }
+
+  .sensor-number {
+    font-size: 1.2rem;
+  }
+
+  .sensor-status {
+    font-size: 1.5rem;
+  }
+}

@@ -1,0 +1,64 @@
+/* Shared styles for all config pages with 20% reduced font sizes */
+
+.config-header h1 {
+  font-size: 1.6rem !important;
+}
+
+.config-section h2 {
+  font-size: 1.2rem !important;
+}
+
+.config-field label {
+  font-size: 0.76rem !important;
+}
+
+.config-field input,
+.config-field select {
+  font-size: 0.8rem !important;
+}
+
+.back-button {
+  font-size: 0.8rem !important;
+}
+
+.btn-cancel,
+.btn-save,
+.btn-calibrate,
+.btn-toggle,
+.btn-export {
+  font-size: 0.8rem !important;
+}
+
+.sensor-info-box p {
+  font-size: 0.8rem !important;
+}
+
+.sensor-info-box strong {
+  font-size: 0.88rem !important;
+}
+
+.sensor-number {
+  font-size: 1.2rem !important;
+}
+
+.sensor-status {
+  font-size: 1.44rem !important;
+}
+
+.field-description,
+.status-description,
+.export-description {
+  font-size: 0.68rem !important;
+}
+
+.status-text {
+  font-size: 0.96rem !important;
+}
+
+.toggle-text {
+  font-size: 0.88rem !important;
+}
+
+.toggle-description {
+  font-size: 0.76rem !important;
+}
