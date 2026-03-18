@@ -77,7 +77,7 @@ class DataIngestionViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'], url_path='latest-reading')
     def latest_reading(self, request):
         """
-        Retrieve the most recent encoder reading.
+        Retrieve the most recent encoder reading with sensor data.
         
         Optional query parameter:
         - belt_id: Filter by specific belt
@@ -99,11 +99,32 @@ class DataIngestionViewSet(viewsets.ViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
         
+        # Get sensor readings for this encoder reading
+        sensor_readings = SensorReading.objects.filter(encoder_reading=latest)
+        sensor_serializer = SensorReadingDetailSerializer(sensor_readings, many=True)
+        
         serializer = EncoderReadingDetailSerializer(latest)
+        response_data = serializer.data
+        response_data['sensor_readings'] = sensor_serializer.data
+
+        # Add min and max capacitance from stored calibration values
+        for reading in response_data['sensor_readings']:
+            try:
+                sensor = sensor_readings.get(id=reading['id']).sensor
+                if sensor.calibration:
+                    reading['min_capacitance_pf'] = sensor.calibration.min_capacitance_pf
+                    reading['max_capacitance_pf'] = sensor.calibration.max_capacitance_pf
+                else:
+                    reading['min_capacitance_pf'] = None
+                    reading['max_capacitance_pf'] = None
+            except Exception:
+                reading['min_capacitance_pf'] = None
+                reading['max_capacitance_pf'] = None
+        
         return Response(
             {
                 'status': 'success',
-                'data': serializer.data
+                'data': response_data
             },
             status=status.HTTP_200_OK
         )

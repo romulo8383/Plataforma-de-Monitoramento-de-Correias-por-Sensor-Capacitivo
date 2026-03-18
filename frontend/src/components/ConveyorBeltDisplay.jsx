@@ -9,35 +9,37 @@ const ConveyorBeltDisplay = ({
   beltLength,
   encoderPosition,
   allSensors = [],
-  sensorHistory = {}, // Historical readings for each sensor
+  sensorHistory = {},
 }) => {
-  const [displayMode, setDisplayMode] = React.useState('color'); // 'color' or 'graph'
+  const [displayMode, setDisplayMode] = React.useState('color');
 
-  // Calculate position indicator
   const positionPercentage = beltLength > 0 ? (encoderPosition / beltLength) * 100 : 0;
 
-  // Reference capacitance for color scaling (4pF = white, 0.001pF = black)
-  const referenceCapacitance = 4.0;
-  const minCapacitance = 0.001;
-
-  // Function to get grayscale color based on capacitance
-  const getCapacitanceColor = (capacitance) => {
+  // Color based on capacitance: minCap = white, maxCap = black
+  const getCapacitanceColor = (capacitance, minCap, maxCap) => {
     if (capacitance === undefined || capacitance === null) return '#cccccc';
-    const normalized = Math.max(0, Math.min(1, (capacitance - minCapacitance) / (referenceCapacitance - minCapacitance)));
-    const grayValue = Math.round(normalized * 255);
+    if (minCap === null || minCap === undefined || maxCap === null || maxCap === undefined) return '#cccccc';
+    const range = maxCap - minCap;
+    const normalized = range > 0 ? Math.max(0, Math.min(1, (capacitance - minCap) / range)) : 0;
+    const grayValue = Math.round((1 - normalized) * 255);
     return `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
   };
 
-  // Get maximum history length across all sensors for consistent width
-  const maxHistoryLength = Math.max(
-    ...activeSensors.map(sensor => (sensorHistory[sensor.id] || []).length),
-    1
-  );
-
-  // Calculate percentage from capacitance
-  const getPercentage = (capacitance) => {
+  // Percentage based on capacitance: minCap = 0%, maxCap = 100%
+  const getCapacitancePercentage = (capacitance, minCap, maxCap) => {
     if (capacitance === undefined || capacitance === null) return 0;
-    return Math.max(0, Math.min(100, ((capacitance - minCapacitance) / (referenceCapacitance - minCapacitance)) * 100));
+    if (minCap === null || minCap === undefined || maxCap === null || maxCap === undefined) return 0;
+    const range = maxCap - minCap;
+    return range > 0 ? Math.max(0, Math.min(100, ((capacitance - minCap) / range) * 100)) : 0;
+  };
+
+  // Get min/max from active sensor as fallback
+  const getSensorLimits = (sensorId) => {
+    const sensor = activeSensors.find(s => s.id === sensorId);
+    return {
+      minCap: sensor?.min_capacitance_pf ?? null,
+      maxCap: sensor?.max_capacitance_pf ?? null,
+    };
   };
 
   // Lane height based on number of active sensors
@@ -99,6 +101,11 @@ const ConveyorBeltDisplay = ({
         <div className="conveyor-belt">
           {activeSensors.map((sensor, laneIndex) => {
             const history = sensorHistory[sensor.id] || [];
+            const { minCap: sensorMinCap, maxCap: sensorMaxCap } = getSensorLimits(sensor.id);
+            const maxHistoryLength = Math.max(
+              ...activeSensors.map(s => (sensorHistory[s.id] || []).length),
+              1
+            );
             const readingWidth = maxHistoryLength > 0 ? 100 / maxHistoryLength : 100;
 
             return (
@@ -124,7 +131,6 @@ const ConveyorBeltDisplay = ({
                 {/* Historical readings */}
                 <div className="history-container">
                   {displayMode === 'color' ? (
-                    // Color mode - existing implementation
                     <>
                       {history.map((reading, idx) => (
                         <div
@@ -132,7 +138,11 @@ const ConveyorBeltDisplay = ({
                           className="reading-column"
                           style={{
                             width: `${readingWidth}%`,
-                            backgroundColor: getCapacitanceColor(reading.capacitance_pf),
+                            backgroundColor: getCapacitanceColor(
+                              reading.capacitance_pf,
+                              reading.min_capacitance_pf ?? sensorMinCap,
+                              reading.max_capacitance_pf ?? sensorMaxCap
+                            ),
                             borderRight: '1px solid rgba(255,255,255,0.2)',
                           }}
                           title={`${reading.capacitance_pf?.toFixed(3) || '0.000'} pF`}
@@ -152,7 +162,6 @@ const ConveyorBeltDisplay = ({
                         ))}
                     </>
                   ) : (
-                    // Graph mode - line graph implementation
                     <svg
                       className="line-graph"
                       width="100%"
@@ -161,12 +170,19 @@ const ConveyorBeltDisplay = ({
                       style={{ backgroundColor: 'white' }}
                     >
                       {history.map((reading, idx) => {
-                        const percentage = getPercentage(reading.capacitance_pf);
+                        const percentage = getCapacitancePercentage(
+                          reading.capacitance_pf,
+                          reading.min_capacitance_pf ?? sensorMinCap,
+                          reading.max_capacitance_pf ?? sensorMaxCap
+                        );
                         const x = (idx / maxHistoryLength) * 100;
                         const nextReading = history[idx + 1];
-                        const nextPercentage = nextReading ? getPercentage(nextReading.capacitance_pf) : percentage;
+                        const nextPercentage = nextReading ? getCapacitancePercentage(
+                          nextReading.capacitance_pf,
+                          nextReading.min_capacitance_pf ?? sensorMinCap,
+                          nextReading.max_capacitance_pf ?? sensorMaxCap
+                        ) : percentage;
                         const nextX = ((idx + 1) / maxHistoryLength) * 100;
-                        
                         return (
                           <line
                             key={idx}

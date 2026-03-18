@@ -1,5 +1,6 @@
 // src/components/CalibrationScreen.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { apiClient } from '../api/apiClient';
 import {
   LineChart,
   Line,
@@ -30,8 +31,91 @@ const CalibrationScreen = () => {
   const [outliers, setOutliers] = useState(new Set());
   const [nextId, setNextId] = useState(6);
 
+  // Load last calibration from backend on mount
+  useEffect(() => {
+    const loadLastCalibration = async () => {
+      try {
+        const response = await apiClient.getCalibrations();
+        if (response.status === 'success' && response.calibrations.length > 0) {
+          const last = response.calibrations[0];
+
+          // Load points
+          const detailResponse = await apiClient.getCalibrationById(last.id);
+          if (detailResponse.status === 'success') {
+            const { calibration } = detailResponse;
+
+            // Restore points
+            const points = calibration.points.map((p, i) => ({
+              id: i + 1,
+              fixedCap: calibration.fixed_capacitor_pf,
+              varCap: p.variable_capacitor_pf,
+              voltage: p.measured_voltage_v,
+            }));
+            setCalibrationPoints(points);
+            setNextId(points.length + 1);
+
+            // Restore polynomial
+            const coeffs = {
+              a: calibration.coefficients.a4,
+              b: calibration.coefficients.a3,
+              c: calibration.coefficients.a2,
+              d: calibration.coefficients.a1,
+              e: calibration.coefficients.a0,
+            };
+            setPolynomial(coeffs);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao carregar calibração:', error);
+      }
+    };
+
+    loadLastCalibration();
+  }, []);
+
+  // Gaussian elimination for solving linear systems
+  const gaussElimination = useCallback((A, b) => {
+    const n = A.length;
+    const matrix = A.map(row => [...row]);
+    const vector = [...b];
+
+    // Forward elimination
+    for (let i = 0; i < n; i++) {
+      let maxRow = i;
+      for (let k = i + 1; k < n; k++) {
+        if (Math.abs(matrix[k][i]) > Math.abs(matrix[maxRow][i])) {
+          maxRow = k;
+        }
+      }
+
+      // Swap rows
+      [matrix[i], matrix[maxRow]] = [matrix[maxRow], matrix[i]];
+      [vector[i], vector[maxRow]] = [vector[maxRow], vector[i]];
+
+      // Make all rows below this one 0 in current column
+      for (let k = i + 1; k < n; k++) {
+        const c = matrix[k][i] / matrix[i][i];
+        for (let j = i; j < n; j++) {
+          matrix[k][j] -= c * matrix[i][j];
+        }
+        vector[k] -= c * vector[i];
+      }
+    }
+
+    // Back substitution
+    const solution = new Array(n);
+    for (let i = n - 1; i >= 0; i--) {
+      solution[i] = vector[i] / matrix[i][i];
+      for (let k = i - 1; k >= 0; k--) {
+        vector[k] -= matrix[k][i] * solution[i];
+      }
+    }
+
+    return solution;
+  }, []);
+
   // Polynomial regression for 4th degree
-  const polynomialRegression = (points) => {
+  const polynomialRegression = useCallback((points) => {
     if (points.length < 5) {
       alert('Você precisa de pelo menos 5 pontos de calibração');
       return null;
@@ -111,51 +195,10 @@ const CalibrationScreen = () => {
       rmse: rmseValue,
       outliers: outlierIndices,
     };
-  };
-
-  // Gaussian elimination for solving linear systems
-  const gaussElimination = (A, b) => {
-    const n = A.length;
-    const matrix = A.map(row => [...row]);
-    const vector = [...b];
-
-    // Forward elimination
-    for (let i = 0; i < n; i++) {
-      let maxRow = i;
-      for (let k = i + 1; k < n; k++) {
-        if (Math.abs(matrix[k][i]) > Math.abs(matrix[maxRow][i])) {
-          maxRow = k;
-        }
-      }
-
-      // Swap rows
-      [matrix[i], matrix[maxRow]] = [matrix[maxRow], matrix[i]];
-      [vector[i], vector[maxRow]] = [vector[maxRow], vector[i]];
-
-      // Make all rows below this one 0 in current column
-      for (let k = i + 1; k < n; k++) {
-        const c = matrix[k][i] / matrix[i][i];
-        for (let j = i; j < n; j++) {
-          matrix[k][j] -= c * matrix[i][j];
-        }
-        vector[k] -= c * vector[i];
-      }
-    }
-
-    // Back substitution
-    const solution = new Array(n);
-    for (let i = n - 1; i >= 0; i--) {
-      solution[i] = vector[i] / matrix[i][i];
-      for (let k = i - 1; k >= 0; k--) {
-        vector[k] -= matrix[k][i] * solution[i];
-      }
-    }
-
-    return solution;
-  };
+  }, [gaussElimination]);
 
   // Generate polynomial curve for visualization
-  const generateCurveData = (coeffs) => {
+  const generateCurveData = useCallback((coeffs) => {
     const data = [];
     const minV = Math.min(...calibrationPoints.map(p => p.voltage));
     const maxV = Math.max(...calibrationPoints.map(p => p.voltage));
@@ -176,9 +219,9 @@ const CalibrationScreen = () => {
     }
 
     return data;
-  };
+  }, [calibrationPoints]);
 
-  const handleGeneratePolynomial = () => {
+  const handleGeneratePolynomial = useCallback(() => {
     const result = polynomialRegression(calibrationPoints);
     if (result) {
       setPolynomial(result.coefficients);
@@ -194,56 +237,81 @@ const CalibrationScreen = () => {
       }));
       setChartData([...combined, ...curveData]);
     }
-  };
+  }, [calibrationPoints, polynomialRegression, generateCurveData]);
 
-  const handleAddPoint = () => {
-    const newPoint = {
-      id: nextId,
-      fixedCap: 4,
-      varCap: 1.5,
-      voltage: 1.0,
-    };
-    setCalibrationPoints([...calibrationPoints, newPoint]);
-    setNextId(nextId + 1);
-  };
+  const handleAddPoint = useCallback(() => {
+    setCalibrationPoints(prev => [
+      ...prev,
+      {
+        id: nextId,
+        fixedCap: 4,
+        varCap: 1.5,
+        voltage: 1.0,
+      }
+    ]);
+    setNextId(prev => prev + 1);
+  }, [nextId]);
 
-  const handleDeletePoint = (id) => {
-    setCalibrationPoints(calibrationPoints.filter(p => p.id !== id));
-  };
+  const handleDeletePoint = useCallback((id) => {
+    setCalibrationPoints(prev => prev.filter(p => p.id !== id));
+  }, []);
 
-  const handleUpdatePoint = (id, field, value) => {
-    setCalibrationPoints(
-      calibrationPoints.map(p =>
+  const handleUpdatePoint = useCallback((id, field, value) => {
+    setCalibrationPoints(prev =>
+      prev.map(p =>
         p.id === id ? { ...p, [field]: parseFloat(value) || 0 } : p
       )
     );
-  };
+  }, []);
 
-  const handleSaveCalibration = () => {
+  const handleSaveCalibration = useCallback(async () => {
     if (!polynomial) {
       alert('Gere o polinômio primeiro');
       return;
     }
 
-    const calibrationData = {
-      timestamp: new Date().toISOString(),
-      coefficients: polynomial,
-      rmse: rmse,
-      pointsCount: calibrationPoints.length,
-      points: calibrationPoints,
-    };
+    try {
+      // Pegar o valor do capacitor fixo do primeiro ponto
+      const fixedCapacitor = calibrationPoints[0]?.fixedCap || 5.0;
+      
+      const calibrationData = {
+        name: `Calibração ${new Date().toLocaleString('pt-BR')}`,
+        description: `Calibração gerada com ${calibrationPoints.length} pontos. RMSE: ${rmse.toFixed(4)} pF`,
+        fixed_capacitor_pf: fixedCapacitor,
+        coefficients: polynomial,
+        points: calibrationPoints,
+      };
 
-    localStorage.setItem('sensorCalibration', JSON.stringify(calibrationData));
-    alert('Calibração salva com sucesso!');
-  };
+      // Salvar no backend
+      const response = await apiClient.createCalibration(calibrationData);
+      
+      if (response.status === 'success') {
+        // Salvar também no localStorage como backup
+        localStorage.setItem('sensorCalibration', JSON.stringify({
+          timestamp: new Date().toISOString(),
+          coefficients: polynomial,
+          rmse: rmse,
+          pointsCount: calibrationPoints.length,
+          points: calibrationPoints,
+        }));
+        
+        alert('Calibração salva com sucesso no backend!\nTodos os sensores foram atualizados para usar esta calibração.');
+      } else {
+        alert('Erro ao salvar calibração: ' + (response.message || 'Erro desconhecido'));
+      }
+    } catch (error) {
+      console.error('Erro ao salvar calibração:', error);
+      alert('Erro ao salvar calibração. Verifique a conexão com o backend.');
+    }
+  }, [polynomial, rmse, calibrationPoints]);
 
-  const formatPolynomial = () => {
+  const formatPolynomial = useCallback(() => {
     if (!polynomial) return null;
     const { a, b, c, d, e } = polynomial;
     const formatCoeff = (val) => (val >= 0 ? '+' : '') + val.toFixed(6);
 
     return `C = ${a.toFixed(6)}*(V*V*V*V) ${formatCoeff(b)}*(V*V*V) ${formatCoeff(c)}*(V*V) ${formatCoeff(d)}*V ${formatCoeff(e)}`;
-  };
+  }, [polynomial]);
 
   return (
     <div className="calibration-form">

@@ -18,9 +18,9 @@ class SensorReadingInputSerializer(serializers.Serializer):
 
     def validate_sensor_id(self, value):
         """Validate that the sensor_id exists in the database."""
-        if not Sensor.objects.filter(id=value).exists():
+        if not Sensor.objects.filter(sensor_number=value).exists():
             raise serializers.ValidationError(
-                f"Sensor with ID {value} does not exist."
+                f"Sensor with number {value} does not exist."
             )
         return value
 
@@ -107,7 +107,7 @@ class EncoderReadingSerializer(serializers.Serializer):
         # Create SensorReadings
         sensor_readings = []
         for sensor_data in sensors_data:
-            sensor = Sensor.objects.get(id=sensor_data['sensor_id'])
+            sensor = Sensor.objects.get(sensor_number=sensor_data['sensor_id'])
             sensor_reading = SensorReading.objects.create(
                 sensor=sensor,
                 encoder_reading=encoder_reading,

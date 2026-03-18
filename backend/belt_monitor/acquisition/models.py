@@ -67,6 +67,27 @@ class SensorReading(models.Model):
         verbose_name_plural = "Sensor Readings"
         ordering = ['-timestamp']
 
+    def save(self, *args, **kwargs):
+        """Calculate capacitance from voltage using sensor calibration."""
+        if self.sensor.calibration and self.voltage_v is not None:
+            cal = self.sensor.calibration
+            V = self.voltage_v
+            V_MAX = 3.3
+            V_MIN = 0.0
+
+            def apply_poly(v):
+                return (
+                    (cal.a4 or 0) * (v ** 4) +
+                    (cal.a3 or 0) * (v ** 3) +
+                    (cal.a2 or 0) * (v ** 2) +
+                    (cal.a1 or 0) * v +
+                    (cal.a0 or 0)
+                )
+
+            self.capacitance_pf = max(0, min(apply_poly(V), apply_poly(V_MAX)))
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
         cap_str = f" → {self.capacitance_pf}pF" if self.capacitance_pf else ""
         return f"Sensor {self.sensor.sensor_number} - {self.voltage_v}V{cap_str}"

@@ -83,6 +83,16 @@ class SensorCalibration(models.Model):
         null=True,
         help_text="Constant term in polynomial"
     )
+    min_capacitance_pf = models.FloatField(
+        blank=True,
+        null=True,
+        help_text="Capacitance at 0V (minimum reference)"
+    )
+    max_capacitance_pf = models.FloatField(
+        blank=True,
+        null=True,
+        help_text="Capacitance at 3.3V (maximum reference)"
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         help_text="Timestamp when the calibration was created"

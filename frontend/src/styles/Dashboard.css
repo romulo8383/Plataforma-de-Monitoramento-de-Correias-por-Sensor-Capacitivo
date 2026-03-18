@@ -87,6 +87,14 @@ body {
   color: var(--success-color);
 }
 
+.status-value.offline {
+  color: var(--warning-color);
+}
+
+.status-item.error {
+  color: var(--danger-color);
+}
+
 .conveyor-section {
   background: var(--bg-secondary);
   padding: 2rem;

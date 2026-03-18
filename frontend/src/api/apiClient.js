@@ -87,4 +87,59 @@ export const apiClient = {
       throw error;
     }
   },
+
+  toggleSensor: async (sensorId, enabled) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/configuration/toggle-sensor/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sensor_id: sensorId,
+          enabled: enabled,
+        }),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error toggling sensor:', error);
+      throw error;
+    }
+  },
+
+  createCalibration: async (calibrationData) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/configuration/calibrations/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(calibrationData),
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Error creating calibration:', error);
+      throw error;
+    }
+  },
+
+  getCalibrations: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/configuration/calibrations/`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching calibrations:', error);
+      throw error;
+    }
+  },
+
+  getCalibrationById: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/configuration/calibrations/detail/?id=${id}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching calibration by id:', error);
+      throw error;
+    }
+  },
 };
