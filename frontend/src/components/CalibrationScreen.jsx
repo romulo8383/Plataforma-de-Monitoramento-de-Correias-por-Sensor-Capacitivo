@@ -1,11 +1,7 @@
 // src/components/CalibrationScreen.jsx
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../api/apiClient';
 import {
-  LineChart,
-  Line,
-  ScatterChart,
-  Scatter,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -13,6 +9,8 @@ import {
   Legend,
   ResponsiveContainer,
   ComposedChart,
+  Line,
+  Scatter,
 } from 'recharts';
 import '../styles/Calibration.css';
 
@@ -30,21 +28,19 @@ const CalibrationScreen = () => {
   const [chartData, setChartData] = useState([]);
   const [outliers, setOutliers] = useState(new Set());
   const [nextId, setNextId] = useState(6);
+  const [minVoltage, setMinVoltage] = useState(0.0);
+  const [maxVoltage, setMaxVoltage] = useState(3.3);
 
-  // Load last calibration from backend on mount
   useEffect(() => {
     const loadLastCalibration = async () => {
       try {
         const response = await apiClient.getCalibrations();
         if (response.status === 'success' && response.calibrations.length > 0) {
           const last = response.calibrations[0];
-
-          // Load points
           const detailResponse = await apiClient.getCalibrationById(last.id);
           if (detailResponse.status === 'success') {
             const { calibration } = detailResponse;
 
-            // Restore points
             const points = calibration.points.map((p, i) => ({
               id: i + 1,
               fixedCap: calibration.fixed_capacitor_pf,
@@ -54,7 +50,9 @@ const CalibrationScreen = () => {
             setCalibrationPoints(points);
             setNextId(points.length + 1);
 
-            // Restore polynomial
+            if (calibration.min_voltage_v != null) setMinVoltage(calibration.min_voltage_v);
+            if (calibration.max_voltage_v != null) setMaxVoltage(calibration.max_voltage_v);
+
             const coeffs = {
               a: calibration.coefficients.a4,
               b: calibration.coefficients.a3,
@@ -73,48 +71,34 @@ const CalibrationScreen = () => {
     loadLastCalibration();
   }, []);
 
-  // Gaussian elimination for solving linear systems
   const gaussElimination = useCallback((A, b) => {
     const n = A.length;
     const matrix = A.map(row => [...row]);
     const vector = [...b];
 
-    // Forward elimination
     for (let i = 0; i < n; i++) {
       let maxRow = i;
       for (let k = i + 1; k < n; k++) {
-        if (Math.abs(matrix[k][i]) > Math.abs(matrix[maxRow][i])) {
-          maxRow = k;
-        }
+        if (Math.abs(matrix[k][i]) > Math.abs(matrix[maxRow][i])) maxRow = k;
       }
-
-      // Swap rows
       [matrix[i], matrix[maxRow]] = [matrix[maxRow], matrix[i]];
       [vector[i], vector[maxRow]] = [vector[maxRow], vector[i]];
 
-      // Make all rows below this one 0 in current column
       for (let k = i + 1; k < n; k++) {
         const c = matrix[k][i] / matrix[i][i];
-        for (let j = i; j < n; j++) {
-          matrix[k][j] -= c * matrix[i][j];
-        }
+        for (let j = i; j < n; j++) matrix[k][j] -= c * matrix[i][j];
         vector[k] -= c * vector[i];
       }
     }
 
-    // Back substitution
     const solution = new Array(n);
     for (let i = n - 1; i >= 0; i--) {
       solution[i] = vector[i] / matrix[i][i];
-      for (let k = i - 1; k >= 0; k--) {
-        vector[k] -= matrix[k][i] * solution[i];
-      }
+      for (let k = i - 1; k >= 0; k--) vector[k] -= matrix[k][i] * solution[i];
     }
-
     return solution;
   }, []);
 
-  // Polynomial regression for 4th degree
   const polynomialRegression = useCallback((points) => {
     if (points.length < 5) {
       alert('Você precisa de pelo menos 5 pontos de calibração');
@@ -125,8 +109,6 @@ const CalibrationScreen = () => {
     const voltages = points.map(p => p.voltage);
     const capacitances = points.map(p => p.varCap);
 
-    // Build design matrix for 4th degree polynomial
-    // [V^4, V^3, V^2, V, 1]
     const matrix = points.map(p => {
       const V = p.voltage;
       const V2 = V * V;
@@ -135,31 +117,18 @@ const CalibrationScreen = () => {
       return [V4, V3, V2, V, 1];
     });
 
-    // Normal equations: X^T * X * coeffs = X^T * y
-    const XtX = [
-      [0, 0, 0, 0, 0],
-      [0, 0, 0, 0, 0],
-      [0, 0, 0, 0, 0],
-      [0, 0, 0, 0, 0],
-      [0, 0, 0, 0, 0],
-    ];
-
+    const XtX = Array.from({ length: 5 }, () => [0, 0, 0, 0, 0]);
     const Xty = [0, 0, 0, 0, 0];
 
-    // Calculate X^T * X
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < 5; j++) {
-        for (let k = 0; k < 5; k++) {
-          XtX[j][k] += matrix[i][j] * matrix[i][k];
-        }
+        for (let k = 0; k < 5; k++) XtX[j][k] += matrix[i][j] * matrix[i][k];
         Xty[j] += matrix[i][j] * capacitances[i];
       }
     }
 
-    // Solve using Gauss elimination
     const coeffs = gaussElimination(XtX, Xty);
 
-    // Calculate RMSE
     let sumSquaredErrors = 0;
     const predictedValues = [];
     for (let i = 0; i < n; i++) {
@@ -174,30 +143,18 @@ const CalibrationScreen = () => {
     }
     const rmseValue = Math.sqrt(sumSquaredErrors / n);
 
-    // Detect outliers (points deviating more than 0.1 pF from curve)
     const outlierIndices = new Set();
-    const threshold = 0.1;
     for (let i = 0; i < n; i++) {
-      const error = Math.abs(capacitances[i] - predictedValues[i]);
-      if (error > threshold) {
-        outlierIndices.add(points[i].id);
-      }
+      if (Math.abs(capacitances[i] - predictedValues[i]) > 0.1) outlierIndices.add(points[i].id);
     }
 
     return {
-      coefficients: {
-        a: coeffs[0],
-        b: coeffs[1],
-        c: coeffs[2],
-        d: coeffs[3],
-        e: coeffs[4],
-      },
+      coefficients: { a: coeffs[0], b: coeffs[1], c: coeffs[2], d: coeffs[3], e: coeffs[4] },
       rmse: rmseValue,
       outliers: outlierIndices,
     };
   }, [gaussElimination]);
 
-  // Generate polynomial curve for visualization
   const generateCurveData = useCallback((coeffs) => {
     const data = [];
     const minV = Math.min(...calibrationPoints.map(p => p.voltage));
@@ -210,14 +167,9 @@ const CalibrationScreen = () => {
         const V3 = V2 * V;
         const V4 = V3 * V;
         const C = coeffs.a * V4 + coeffs.b * V3 + coeffs.c * V2 + coeffs.d * V + coeffs.e;
-        data.push({
-          voltage: parseFloat(V.toFixed(3)),
-          capacitance: parseFloat(C.toFixed(3)),
-          type: 'curve',
-        });
+        data.push({ voltage: parseFloat(V.toFixed(3)), capacitance: parseFloat(C.toFixed(3)), type: 'curve' });
       }
     }
-
     return data;
   }, [calibrationPoints]);
 
@@ -229,26 +181,13 @@ const CalibrationScreen = () => {
       setOutliers(result.outliers);
 
       const curveData = generateCurveData(result.coefficients);
-      const combined = calibrationPoints.map(p => ({
-        voltage: p.voltage,
-        capacitance: p.varCap,
-        type: 'point',
-        id: p.id,
-      }));
+      const combined = calibrationPoints.map(p => ({ voltage: p.voltage, capacitance: p.varCap, type: 'point', id: p.id }));
       setChartData([...combined, ...curveData]);
     }
   }, [calibrationPoints, polynomialRegression, generateCurveData]);
 
   const handleAddPoint = useCallback(() => {
-    setCalibrationPoints(prev => [
-      ...prev,
-      {
-        id: nextId,
-        fixedCap: 4,
-        varCap: 1.5,
-        voltage: 1.0,
-      }
-    ]);
+    setCalibrationPoints(prev => [...prev, { id: nextId, fixedCap: 4, varCap: 1.5, voltage: 1.0 }]);
     setNextId(prev => prev + 1);
   }, [nextId]);
 
@@ -258,9 +197,7 @@ const CalibrationScreen = () => {
 
   const handleUpdatePoint = useCallback((id, field, value) => {
     setCalibrationPoints(prev =>
-      prev.map(p =>
-        p.id === id ? { ...p, [field]: parseFloat(value) || 0 } : p
-      )
+      prev.map(p => p.id === id ? { ...p, [field]: parseFloat(value) || 0 } : p)
     );
   }, []);
 
@@ -271,30 +208,28 @@ const CalibrationScreen = () => {
     }
 
     try {
-      // Pegar o valor do capacitor fixo do primeiro ponto
       const fixedCapacitor = calibrationPoints[0]?.fixedCap || 5.0;
-      
+
       const calibrationData = {
         name: `Calibração ${new Date().toLocaleString('pt-BR')}`,
-        description: `Calibração gerada com ${calibrationPoints.length} pontos. RMSE: ${rmse.toFixed(4)} pF`,
+        description: `Calibração gerada com ${calibrationPoints.length} pontos. RMSE: ${rmse != null ? rmse.toFixed(4) : 'N/A'} pF`,
         fixed_capacitor_pf: fixedCapacitor,
+        min_voltage_v: minVoltage,
+        max_voltage_v: maxVoltage,
         coefficients: polynomial,
         points: calibrationPoints,
       };
 
-      // Salvar no backend
       const response = await apiClient.createCalibration(calibrationData);
-      
+
       if (response.status === 'success') {
-        // Salvar também no localStorage como backup
         localStorage.setItem('sensorCalibration', JSON.stringify({
           timestamp: new Date().toISOString(),
           coefficients: polynomial,
-          rmse: rmse,
+          rmse,
           pointsCount: calibrationPoints.length,
           points: calibrationPoints,
         }));
-        
         alert('Calibração salva com sucesso no backend!\nTodos os sensores foram atualizados para usar esta calibração.');
       } else {
         alert('Erro ao salvar calibração: ' + (response.message || 'Erro desconhecido'));
@@ -303,14 +238,13 @@ const CalibrationScreen = () => {
       console.error('Erro ao salvar calibração:', error);
       alert('Erro ao salvar calibração. Verifique a conexão com o backend.');
     }
-  }, [polynomial, rmse, calibrationPoints]);
+  }, [polynomial, rmse, calibrationPoints, minVoltage, maxVoltage]);
 
   const formatPolynomial = useCallback(() => {
     if (!polynomial) return null;
     const { a, b, c, d, e } = polynomial;
-    const formatCoeff = (val) => (val >= 0 ? '+' : '') + val.toFixed(6);
-
-    return `C = ${a.toFixed(6)}*(V*V*V*V) ${formatCoeff(b)}*(V*V*V) ${formatCoeff(c)}*(V*V) ${formatCoeff(d)}*V ${formatCoeff(e)}`;
+    const fmt = (val) => (val >= 0 ? '+' : '') + val.toFixed(6);
+    return `C = ${a.toFixed(6)}*(V^4) ${fmt(b)}*(V^3) ${fmt(c)}*(V^2) ${fmt(d)}*V ${fmt(e)}`;
   }, [polynomial]);
 
   return (
@@ -329,7 +263,40 @@ const CalibrationScreen = () => {
         </p>
       </section>
 
-      {/* Section 2: Calibration Data Table */}
+      {/* Section 2: Voltage Range */}
+      <section className="calibration-section">
+        <h3>Faixa de Tensão de Referência</h3>
+        <p>Define os limites de tensão que correspondem a 0% e 100% nas visualizações.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label style={{ fontWeight: 600 }}>Tensão mínima (V):</label>
+            <input
+              type="number"
+              step="0.001"
+              min="0"
+              max="3.2"
+              value={minVoltage}
+              onChange={(e) => setMinVoltage(parseFloat(e.target.value) || 0)}
+              style={{ width: '100px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '1rem' }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label style={{ fontWeight: 600 }}>Tensão máxima (V):</label>
+            <input
+              type="number"
+              step="0.001"
+              min="0.1"
+              max="3.3"
+              value={maxVoltage}
+              onChange={(e) => setMaxVoltage(parseFloat(e.target.value) || 3.3)}
+              style={{ width: '100px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '1rem' }}
+            />
+          </div>
+          <span style={{ color: '#64748b', fontSize: '0.9rem' }}>ESP32: 0V – 3.3V</span>
+        </div>
+      </section>
+
+      {/* Section 3: Calibration Data Table */}
       <section className="calibration-section">
         <h3>Dados de Calibração</h3>
         <div className="table-container">
@@ -344,41 +311,21 @@ const CalibrationScreen = () => {
             </thead>
             <tbody>
               {calibrationPoints.map(point => (
-                <tr
-                  key={point.id}
-                  className={outliers.has(point.id) ? 'outlier-row' : ''}
-                >
+                <tr key={point.id} className={outliers.has(point.id) ? 'outlier-row' : ''}>
                   <td>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={point.fixedCap}
-                      onChange={(e) => handleUpdatePoint(point.id, 'fixedCap', e.target.value)}
-                    />
+                    <input type="number" step="0.1" value={point.fixedCap}
+                      onChange={(e) => handleUpdatePoint(point.id, 'fixedCap', e.target.value)} />
                   </td>
                   <td>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={point.varCap}
-                      onChange={(e) => handleUpdatePoint(point.id, 'varCap', e.target.value)}
-                    />
+                    <input type="number" step="0.1" value={point.varCap}
+                      onChange={(e) => handleUpdatePoint(point.id, 'varCap', e.target.value)} />
                   </td>
                   <td>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={point.voltage}
-                      onChange={(e) => handleUpdatePoint(point.id, 'voltage', e.target.value)}
-                    />
+                    <input type="number" step="0.01" value={point.voltage}
+                      onChange={(e) => handleUpdatePoint(point.id, 'voltage', e.target.value)} />
                   </td>
                   <td>
-                    <button
-                      className="delete-btn"
-                      onClick={() => handleDeletePoint(point.id)}
-                    >
-                      Deletar
-                    </button>
+                    <button className="delete-btn" onClick={() => handleDeletePoint(point.id)}>Deletar</button>
                   </td>
                 </tr>
               ))}
@@ -390,48 +337,31 @@ const CalibrationScreen = () => {
         </button>
       </section>
 
-      {/* Section 3: Generate Polynomial */}
+      {/* Section 4: Generate Polynomial */}
       <section className="calibration-section">
         <button className="action-btn primary-btn" onClick={handleGeneratePolynomial}>
           Gerar Polinômio
         </button>
       </section>
 
-      {/* Section 4: Display Polynomial */}
+      {/* Section 5: Display Polynomial */}
       {polynomial && (
         <section className="calibration-section polynomial-section">
           <h3>Equação Polinomial Gerada</h3>
           <div className="polynomial-display">
-            <code className="polynomial-code">
-              {formatPolynomial()}
-            </code>
+            <code className="polynomial-code">{formatPolynomial()}</code>
           </div>
           <div className="coefficients-grid">
-            <div className="coefficient-item">
-              <label>a (V⁴)</label>
-              <span>{polynomial.a.toFixed(6)}</span>
-            </div>
-            <div className="coefficient-item">
-              <label>b (V³)</label>
-              <span>{polynomial.b.toFixed(6)}</span>
-            </div>
-            <div className="coefficient-item">
-              <label>c (V²)</label>
-              <span>{polynomial.c.toFixed(6)}</span>
-            </div>
-            <div className="coefficient-item">
-              <label>d (V)</label>
-              <span>{polynomial.d.toFixed(6)}</span>
-            </div>
-            <div className="coefficient-item">
-              <label>e (constante)</label>
-              <span>{polynomial.e.toFixed(6)}</span>
-            </div>
+            <div className="coefficient-item"><label>a (V⁴)</label><span>{polynomial.a.toFixed(6)}</span></div>
+            <div className="coefficient-item"><label>b (V³)</label><span>{polynomial.b.toFixed(6)}</span></div>
+            <div className="coefficient-item"><label>c (V²)</label><span>{polynomial.c.toFixed(6)}</span></div>
+            <div className="coefficient-item"><label>d (V)</label><span>{polynomial.d.toFixed(6)}</span></div>
+            <div className="coefficient-item"><label>e (constante)</label><span>{polynomial.e.toFixed(6)}</span></div>
           </div>
         </section>
       )}
 
-      {/* Section 5: Error Metrics */}
+      {/* Section 6: Error Metrics */}
       {rmse !== null && (
         <section className="calibration-section error-metrics">
           <h3>Métricas de Calibração</h3>
@@ -448,44 +378,24 @@ const CalibrationScreen = () => {
         </section>
       )}
 
-      {/* Section 6: Calibration Curve Visualization */}
+      {/* Section 7: Calibration Curve Visualization */}
       {chartData.length > 0 && (
         <section className="calibration-section graph-section">
           <h3>Curva de Calibração</h3>
           <ResponsiveContainer width="100%" height={400}>
             <ComposedChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                type="number"
-                dataKey="voltage"
-                name="Tensão (V)"
-                label={{ value: 'Tensão (V)', position: 'insideBottomRight', offset: -5 }}
-              />
-              <YAxis
-                type="number"
-                dataKey="capacitance"
-                name="Capacitância (pF)"
-                label={{ value: 'Capacitância (pF)', angle: -90, position: 'insideLeft' }}
-              />
+              <XAxis type="number" dataKey="voltage" name="Tensão (V)"
+                label={{ value: 'Tensão (V)', position: 'insideBottomRight', offset: -5 }} />
+              <YAxis type="number" dataKey="capacitance" name="Capacitância (pF)"
+                label={{ value: 'Capacitância (pF)', angle: -90, position: 'insideLeft' }} />
               <Tooltip />
               <Legend />
-              <Line
-                type="monotone"
-                dataKey="capacitance"
-                name="Curva de Regressão"
-                stroke="#2563eb"
-                dot={false}
-                isAnimationActive={false}
-              />
-              <Scatter
-                name="Pontos Medidos"
-                dataKey="capacitance"
-                data={calibrationPoints.map(p => ({
-                  voltage: p.voltage,
-                  capacitance: p.varCap,
-                }))}
-                fill="#10b981"
-              />
+              <Line type="monotone" dataKey="capacitance" name="Curva de Regressão"
+                stroke="#2563eb" dot={false} isAnimationActive={false} />
+              <Scatter name="Pontos Medidos" dataKey="capacitance"
+                data={calibrationPoints.map(p => ({ voltage: p.voltage, capacitance: p.varCap }))}
+                fill="#10b981" />
             </ComposedChart>
           </ResponsiveContainer>
         </section>

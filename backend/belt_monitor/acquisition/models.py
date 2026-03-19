@@ -72,8 +72,6 @@ class SensorReading(models.Model):
         if self.sensor.calibration and self.voltage_v is not None:
             cal = self.sensor.calibration
             V = self.voltage_v
-            V_MAX = 3.3
-            V_MIN = 0.0
 
             def apply_poly(v):
                 return (
@@ -84,7 +82,7 @@ class SensorReading(models.Model):
                     (cal.a0 or 0)
                 )
 
-            self.capacitance_pf = max(0, min(apply_poly(V), apply_poly(V_MAX)))
+            self.capacitance_pf = max(apply_poly(cal.min_voltage_v), min(apply_poly(V), apply_poly(cal.max_voltage_v)))
 
         super().save(*args, **kwargs)
 

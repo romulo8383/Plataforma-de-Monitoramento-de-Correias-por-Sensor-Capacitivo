@@ -199,17 +199,22 @@ class ConfigurationViewSet(viewsets.ViewSet):
         a1 = coefficients.get('d', 0)
         a0 = coefficients.get('e', 0)
 
+        max_voltage_v = float(request.data.get('max_voltage_v', 3.3))
+        min_voltage_v = float(request.data.get('min_voltage_v', 0.0))
+
         def apply_poly(v):
             return a4*(v**4) + a3*(v**3) + a2*(v**2) + a1*v + a0
 
-        min_capacitance_pf = apply_poly(0.0)
-        max_capacitance_pf = apply_poly(3.3)
+        min_capacitance_pf = apply_poly(min_voltage_v)
+        max_capacitance_pf = apply_poly(max_voltage_v)
 
         calibration = SensorCalibration.objects.create(
             name=name,
             description=description,
             fixed_capacitor_pf=fixed_capacitor_pf,
             a4=a4, a3=a3, a2=a2, a1=a1, a0=a0,
+            min_voltage_v=min_voltage_v,
+            max_voltage_v=max_voltage_v,
             min_capacitance_pf=min_capacitance_pf,
             max_capacitance_pf=max_capacitance_pf,
         )
@@ -246,6 +251,8 @@ class ConfigurationViewSet(viewsets.ViewSet):
                     'name': calibration.name,
                     'description': calibration.description,
                     'fixed_capacitor_pf': calibration.fixed_capacitor_pf,
+                    'min_voltage_v': calibration.min_voltage_v,
+                    'max_voltage_v': calibration.max_voltage_v,
                     'coefficients': {
                         'a4': calibration.a4,
                         'a3': calibration.a3,

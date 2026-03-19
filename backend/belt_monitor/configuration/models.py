@@ -83,6 +83,14 @@ class SensorCalibration(models.Model):
         null=True,
         help_text="Constant term in polynomial"
     )
+    min_voltage_v = models.FloatField(
+        default=0.0,
+        help_text="Minimum voltage reference for normalization (default 0V)"
+    )
+    max_voltage_v = models.FloatField(
+        default=3.3,
+        help_text="Maximum voltage reference for normalization (default 3.3V)"
+    )
     min_capacitance_pf = models.FloatField(
         blank=True,
         null=True,
@@ -91,7 +99,7 @@ class SensorCalibration(models.Model):
     max_capacitance_pf = models.FloatField(
         blank=True,
         null=True,
-        help_text="Capacitance at 3.3V (maximum reference)"
+        help_text="Capacitance at max_voltage_v (maximum reference)"
     )
     created_at = models.DateTimeField(
         auto_now_add=True,

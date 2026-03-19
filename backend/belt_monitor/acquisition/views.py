@@ -107,16 +107,35 @@ class DataIngestionViewSet(viewsets.ViewSet):
         response_data = serializer.data
         response_data['sensor_readings'] = sensor_serializer.data
 
-        # Add min and max capacitance from stored calibration values
+        # Add min and max capacitance recalculated from polynomial using stored voltage references
         for reading in response_data['sensor_readings']:
             try:
                 sensor = sensor_readings.get(id=reading['id']).sensor
                 if sensor.calibration:
-                    reading['min_capacitance_pf'] = sensor.calibration.min_capacitance_pf
-                    reading['max_capacitance_pf'] = sensor.calibration.max_capacitance_pf
+                    cal = sensor.calibration
+                    a4 = cal.a4 or 0
+                    a3 = cal.a3 or 0
+                    a2 = cal.a2 or 0
+                    a1 = cal.a1 or 0
+                    a0 = cal.a0 or 0
+
+                    def poly(v, a4=a4, a3=a3, a2=a2, a1=a1, a0=a0):
+                        return a4*(v**4) + a3*(v**3) + a2*(v**2) + a1*v + a0
+
+                    min_cap = poly(cal.min_voltage_v)
+                    max_cap = poly(cal.max_voltage_v)
+                    raw_cap = poly(reading['voltage_v'])
+
+                    reading['capacitance_pf'] = max(min_cap, min(raw_cap, max_cap))
+                    reading['min_capacitance_pf'] = min_cap
+                    reading['max_capacitance_pf'] = max_cap
+                    reading['min_voltage_v'] = cal.min_voltage_v
+                    reading['max_voltage_v'] = cal.max_voltage_v
                 else:
                     reading['min_capacitance_pf'] = None
                     reading['max_capacitance_pf'] = None
+                    reading['min_voltage_v'] = 0.0
+                    reading['max_voltage_v'] = 3.3
             except Exception:
                 reading['min_capacitance_pf'] = None
                 reading['max_capacitance_pf'] = None
