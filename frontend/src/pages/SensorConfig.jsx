@@ -1,15 +1,14 @@
 // src/pages/SensorConfig.jsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useConfig } from '../context/ConfigContext';
+import { apiClient } from '../api/apiClient';
 import '../styles/SensorConfig.css';
 import '../styles/ConfigShared.css';
 
 const SensorConfig = () => {
   const navigate = useNavigate();
-  const { sensorConfig, updateSensorConfig } = useConfig();
-  
-  const [sensors, setSensors] = useState(sensorConfig);
+
+  const [sensors, setSensors] = useState([]);
   const [beltConfig, setBeltConfig] = useState({
     offset: 5, // mm - distância da borda até primeiro capacitor
     capacitorWidth: 40, // mm - dimensão global
@@ -25,22 +24,55 @@ const SensorConfig = () => {
   });
 
   useEffect(() => {
-    setSensors(sensorConfig);
+    const fetchSensors = async () => {
+      try {
+        const response = await apiClient.getSensors(1);
+        if (response.status === 'success') {
+          const backendSensors = response.sensors || [];
+          const allSensors = Array.from({ length: 16 }, (_, i) => {
+            const sensorNumber = i + 1;
+            const found = backendSensors.find(s => s.sensor_number === sensorNumber);
+            return {
+              id: found?.id,
+              number: sensorNumber,
+              enabled: found?.enabled || false,
+            };
+          });
+          setSensors(allSensors);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar sensores do backend:', error);
+      }
+    };
+
+    fetchSensors();
+
     const saved = localStorage.getItem('beltConfig');
     if (saved) {
       setBeltConfig(JSON.parse(saved));
     }
-  }, [sensorConfig]);
-
-  const toggleSensor = useCallback((sensorNumber) => {
-    setSensors(prev =>
-      prev.map(sensor =>
-        sensor.number === sensorNumber
-          ? { ...sensor, enabled: !sensor.enabled }
-          : sensor
-      )
-    );
   }, []);
+
+  const toggleSensor = useCallback(async (sensorNumber) => {
+    const sensor = sensors.find(s => s.number === sensorNumber);
+    if (!sensor || !sensor.id) return;
+
+    const newEnabled = !sensor.enabled;
+    setSensors(prev =>
+      prev.map(s => s.number === sensorNumber ? { ...s, enabled: newEnabled } : s)
+    );
+
+    try {
+      await apiClient.toggleSensor(sensor.id, newEnabled);
+    } catch (error) {
+      console.error('Erro ao alternar sensor no backend:', error);
+      // Reverte a UI se a chamada ao backend falhar
+      setSensors(prev =>
+        prev.map(s => s.number === sensorNumber ? { ...s, enabled: !newEnabled } : s)
+      );
+      alert('Erro ao alternar sensor. Verifique a conexão com o backend.');
+    }
+  }, [sensors]);
 
   const handleCapacitorChange = useCallback((id, field, value) => {
     setBeltConfig(prev => ({
@@ -75,17 +107,16 @@ const SensorConfig = () => {
     }));
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     try {
-      updateSensorConfig(sensors);
       localStorage.setItem('beltConfig', JSON.stringify(beltConfig));
-      alert('Configuração de sensores e correia salva com sucesso!');
+      alert('Layout da correia salvo! (Sensores ativados/desativados já foram aplicados instantaneamente)');
       navigate('/');
     } catch (error) {
       console.error('Erro ao salvar configuração:', error);
       alert('Erro ao salvar configuração.');
     }
-  }, [sensors, beltConfig, updateSensorConfig, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [beltConfig, navigate]);
 
   const activeSensorsCount = useMemo(() => sensors.filter(s => s.enabled).length, [sensors]);
 

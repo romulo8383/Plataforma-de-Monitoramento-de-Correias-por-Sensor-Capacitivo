@@ -30,7 +30,7 @@ const char* WIFI_PASSWORD = "#RUte8320";       // Senha IFES
 // #define USE_SIMPLE_WIFI  // Descomente esta linha para usar rede simples
 
 // ==================== CONFIGURAÇÕES DO BACKEND ====================
-const char* BACKEND_URL = "http://172.19.147.228:8000";  // IP do backend no IFES
+const char* BACKEND_URL = "http://172.19.145.88:8000";  // IP do backend no IFES
 const int BELT_ID = 1;  // ID da correia configurada no backend
 
 // ==================== CONFIGURAÇÕES DOS PINOS GPIO ====================
